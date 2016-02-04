@@ -13,4 +13,5 @@ void setup() {
 void loop() {
   //Kom igjen....
 	// JK
+	// 789
 }
