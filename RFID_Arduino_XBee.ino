@@ -44,7 +44,7 @@ XBee Report Action Taken To Server (T)
 Switch state of lock (T)
 
 Action LEDs (T) (Should be done in several of the states above....)
-Action Lock (T)
+Action Lock (T) (Er denne nødvendig?)
 
 */
 
@@ -55,6 +55,8 @@ Action Lock (T)
 
 #include <SoftwareSerial.h>
 #include <elapsedMillis.h>
+#include <EEPROMex.h>
+
 
 // just for testing of elapsedMillis
 int led = 13; // Pin 13 has an LED connected on most Arduino boards.
