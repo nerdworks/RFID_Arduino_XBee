@@ -4,25 +4,54 @@
  Author:	joran.kvalvaag
 */
 
+/*
+Description:
+Use one or more RFID Readers (ID-20LA (125 kHz)), each connected to an Arduino as access control. The Arduino's communicates with a centralized access control server using XBee.
+*/
+
 // Se på state maskin i eksempelbruk av elapsedMillis....
 // og her: https://hackingmajenkoblog.wordpress.com/2016/02/01/the-finite-state-machine/
+
+/*
+State machine states (Static and Transitional):
+Timers, Check And Update (T)
+Wait For RFID Or XBee Input (S)
+	
+RFID Collect And Validate Input (T)
+RFID Check ID Against Database (T)
+RFID Take Action On ID (T)
+RFID Report ID And Action To Server (T)
+
+XBee Collect And Validate Input (T)
+XBee Update Local Database (T)
+XBee Set Internal Clock (T) Nødvendig med klokke?
+XBee Set Door To Open Or Closed (T)
+XBee Report Action Taken To Server (T)
+
+Action LEDs (T)
+Action Lock (T)
+
+*/
 
 
 // Read about elapsedMillis here:
 // http://www.forward.com.au/pfod/ArduinoProgramming/TimingDelaysInArduino.html
+
+
+#include <SoftwareSerial.h>
 #include <elapsedMillis.h>
 
-// just for testing
+// just for testing of elapsedMillis
 int led = 13; // Pin 13 has an LED connected on most Arduino boards.
 
-// Define timers
-elapsedMillis timer0;
+// Definition of all global timers
+elapsedMillis timer0; // Timer for x
 #define timer0interval 1000 // the interval in mS 
 
 
 void setup() {
 
-	
+	// just for testing of elapsedMillis
 	pinMode(led, OUTPUT); // initialize the digital pin as an output.
 	timer0 = 0; // clear the timer at the end of startup
 }
@@ -33,6 +62,8 @@ void loop() {
 
 	if (timer0 > timer0interval) {
 		timer0 -= timer0interval; // reset the timer
+
+		// just for testing of elapsedMillis
 		int ledPin = digitalRead(led); // read the current state and write the opposite
 		digitalWrite(led, !ledPin); // switch the LED
 	}
