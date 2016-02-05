@@ -7,6 +7,19 @@
 /*
 Description:
 Use one or more RFID Readers (ID-20LA (125 kHz)), each connected to an Arduino as access control. The Arduino's communicates with a centralized access control server using XBee.
+
+Uses two RGB LEDs (in parallel?). One on each side of the door.
+Continuous green = Door lock is continuously open as demanded from server.
+Blinking green = Door lock is temporarily open for passage.
+Continuous red = Door lock is continuously closed as demanded from server.
+Blinking red = Error. -- elaborate.... slow blink, fast blink etc...
+Continuous blue = 
+Blinking blue = Communication or validation is ongoing.
+
+Uses one switch on the inside.
+Short press: Open lock for passage when lock is closed. Close lock if open.
+Long press: ?
+
 */
 
 // Se på state maskin i eksempelbruk av elapsedMillis....
@@ -14,8 +27,8 @@ Use one or more RFID Readers (ID-20LA (125 kHz)), each connected to an Arduino a
 
 /*
 State machine states (Static and Transitional):
-Timers, Check And Update (T)
-Wait For RFID Or XBee Input (S)
+Timers, Check And Update (T) (Er denne nødvendig?)
+Wait for input form RFID, XBee or switch  (S)
 	
 RFID Collect And Validate Input (T)
 RFID Check ID Against Database (T)
@@ -28,7 +41,9 @@ XBee Set Internal Clock (T) Nødvendig med klokke?
 XBee Set Door To Open Or Closed (T)
 XBee Report Action Taken To Server (T)
 
-Action LEDs (T)
+Switch state of lock (T)
+
+Action LEDs (T) (Should be done in several of the states above....)
 Action Lock (T)
 
 */
