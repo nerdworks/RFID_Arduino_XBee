@@ -45,9 +45,14 @@ Switch state of lock (T)
 
 Action LEDs (T) (Should be done in several of the states above....)
 Action Lock (T) (Er denne nødvendig?)
-
+// Forskjellige typer lås må håndteres. NO, NC osv.
+// Noen lås har tilbakemelding....
+// F.eks: com  o------|
+//        open o--\___|
+//      closed o--
 */
 
+enum State { INIT, WAITFORINPUT, RFIDREAD, TIMEOUT, PROCESSING, FINISHED, ERROR } state;
 
 // Read about elapsedMillis here:
 // http://www.forward.com.au/pfod/ArduinoProgramming/TimingDelaysInArduino.html
@@ -67,6 +72,18 @@ elapsedMillis timer0; // Timer for x
 
 
 void setup() {
+	state = INIT
+
+	//RFID reader
+	Serial.begin(9600);
+	pinMode(RFIDResetPin, OUTPUT);
+	digitalWrite(RFIDResetPin, HIGH);
+	//End RFID reader
+
+	//XBee reader
+
+	//End XBee reader
+
 
 	// just for testing of elapsedMillis
 	pinMode(led, OUTPUT); // initialize the digital pin as an output.
@@ -84,5 +101,60 @@ void loop() {
 		int ledPin = digitalRead(led); // read the current state and write the opposite
 		digitalWrite(led, !ledPin); // switch the LED
 	}
+
+	switch (state) {
+	case INIT:		
+		Serial.print("RFID reader");
+		Serial.print("XXX"); // Send f.eks XBee adresse. Kan resolves mot fonuftig navn på server....
+		Serial.print("power up.....");
+		state = WAITFORINPUT;
+		break;
+
+		//Timers, Check And Update(T) (Er denne nødvendig ? )
+
+		
+		
+	case WAITFORINPUT:
+		// Look for input from RFID-chip, XBee, and switch
+
+		if (Serial.available()) {
+			state = RFIDREAD;
+		}
+
+		// Les XBee her....
+
+		break;
+
+	case RFIDREAD;
+		//RFID Collect And Validate Input(T)
+		while (Serial.available()) {
+			//from: http://bildr.org/2011/02/rfid-arduino/
+			int readByte = Serial.read(); //read next available byte
+
+			if (readByte == 2) reading = true; //begining of tag
+			if (readByte == 3) reading = false; //end of tag
+
+			if (reading && readByte != 2 && readByte != 10 && readByte != 13) {
+				//store the tag
+				tagString[index] = readByte;
+				index++;
+			}
+		}
+		break;
+
+		//RFID Check ID Against Database(T)
+		//RFID Take Action On ID(T)
+		//RFID Report ID And Action To Server(T)
+
+		//XBee Collect And Validate Input(T)
+		//XBee Update Local Database(T)
+		//XBee Set Internal Clock(T) Nødvendig med klokke ?
+		//XBee Set Door To Open Or Closed(T)
+		//XBee Report Action Taken To Server(T)
+
+		//Switch state of lock(T)
+
+		//Action LEDs(T) (Should be done in several of the states above....)
+		//Action Lock(T)
 
 }
