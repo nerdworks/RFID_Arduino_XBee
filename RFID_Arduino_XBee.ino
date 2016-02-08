@@ -20,6 +20,17 @@ Uses one switch on the inside.
 Short press: Open lock for passage when lock is closed. Close lock if open.
 Long press: ?
 
+A table of valid RFID numbers are stored in EEPROM. This table can be updated from the server.
+
+Structure of table:
+RFID-tag-number (12 chars = 12 bytes)	|	Zone (16 zones @ 1 bit each = 2 bytes)
+
+1024 / 14 = max 70 active cards. Use external EEPROM if more cards are needed.
+
+I addition a unique ID (RFID node ID) and zone for this reader is stored in EEPROM.....
+
+
+
 */
 
 // Se på state maskin i eksempelbruk av elapsedMillis....
@@ -52,7 +63,7 @@ Action Lock (T) (Er denne nødvendig?)
 //      closed o--
 */
 
-enum State { INIT, WAITFORINPUT, RFIDREAD, TIMEOUT, PROCESSING, FINISHED, ERROR } state;
+enum State { INIT, WAITFORINPUT, RFID_READ, RFID_CHECK_TAG, RFID_ACTION_VALID_ID, TIMEOUT, PROCESSING, FINISHED, ERROR } state;
 
 // Read about elapsedMillis here:
 // http://www.forward.com.au/pfod/ArduinoProgramming/TimingDelaysInArduino.html
@@ -70,14 +81,19 @@ int led = 13; // Pin 13 has an LED connected on most Arduino boards.
 elapsedMillis timer0; // Timer for x
 #define timer0interval 1000 // the interval in mS 
 
+//declare global variables
+char tagString[13]; //Last read RFID tag string
+boolean lockStatus = 1;
+int RFIDResetPin = 13;
+
 
 void setup() {
 	state = INIT
 
-	//RFID reader
-	Serial.begin(9600);
-	pinMode(RFIDResetPin, OUTPUT);
-	digitalWrite(RFIDResetPin, HIGH);
+		//RFID reader
+		Serial.begin(9600);
+		pinMode(RFIDResetPin, OUTPUT);
+		digitalWrite(RFIDResetPin, HIGH);
 	//End RFID reader
 
 	//XBee reader
@@ -86,14 +102,17 @@ void setup() {
 
 
 	// just for testing of elapsedMillis
-	pinMode(led, OUTPUT); // initialize the digital pin as an output.
-	timer0 = 0; // clear the timer at the end of startup
+		pinMode(led, OUTPUT); // initialize the digital pin as an output.
+		timer0 = 0; // clear the timer at the end of startup
 }
 
 // the loop function runs over and over again until power down or reset
 void loop() {
-  
 
+	//Declare variables valid for one loop
+	
+
+	//Timer example
 	if (timer0 > timer0interval) {
 		timer0 -= timer0interval; // reset the timer
 
@@ -101,50 +120,102 @@ void loop() {
 		int ledPin = digitalRead(led); // read the current state and write the opposite
 		digitalWrite(led, !ledPin); // switch the LED
 	}
+	//Timer example end
 
 	switch (state) {
-	case INIT:		
+
+	//###############################################################
+	case INIT:
+		//Move INIT to setup()?
 		Serial.print("RFID reader");
 		Serial.print("XXX"); // Send f.eks XBee adresse. Kan resolves mot fonuftig navn på server....
 		Serial.print("power up.....");
+
+		// Ask server if current state of lock should be locked or unlocked.
+		// If no answer, set to locked.
+
 		state = WAITFORINPUT;
 		break;
 
+	//case nnn:
 		//Timers, Check And Update(T) (Er denne nødvendig ? )
+		//break;
 
 		
-		
+	//###############################################################	
 	case WAITFORINPUT:
 		// Look for input from RFID-chip, XBee, and switch
 
 		if (Serial.available()) {
-			state = RFIDREAD;
+			state = RFID_READ;
+			//Start blinking blue LED...
 		}
 
 		// Les XBee her....
 
 		break;
 
-	case RFIDREAD;
+	//###############################################################
+	case RFID_READ:
 		//RFID Collect And Validate Input(T)
+		boolean reading = false;
+		int index = 0;
 		while (Serial.available()) {
 			//from: http://bildr.org/2011/02/rfid-arduino/
 			int readByte = Serial.read(); //read next available byte
 
-			if (readByte == 2) reading = true; //begining of tag
+			if (readByte == 2) reading = true; //beginning of tag
 			if (readByte == 3) reading = false; //end of tag
 
 			if (reading && readByte != 2 && readByte != 10 && readByte != 13) {
 				//store the tag
 				tagString[index] = readByte;
 				index++;
+				//Continue blinking blue LED
 			}
 		}
+
+		//Reset the RFID reader to read again.
+		digitalWrite(RFIDResetPin, LOW);
+		digitalWrite(RFIDResetPin, HIGH);
+		delay(150); // erstattes med en timer....
+
+		state = RFID_CHECK_TAG;
+
 		break;
 
+	//###############################################################
+	case RFID_CHECK_TAG:
 		//RFID Check ID Against Database(T)
+			//Continue blinking blue LED
+		// See: http://thijs.elenbaas.net/2012/07/extended-eeprom-library-for-arduino
+		// regarding use of EEPROM
+
+		//If tagString is found in EEPROM and zone for this reader matches zone-bit for this tagString
+		//	state = RFID_ACTION_VALID_ID
+		//	Report valid ID to server for logging
+
+		//else
+		//	blink red LED
+		//	report invalid tag to server for logging
+		//	state = WAITFORINPUT;
+
+		//clear the char array by filling with null - ASCII 0. Will think same tag has been read otherwise.
+		//See: http://bildr.org/2011/02/rfid-arduino/
+
+
+		break;
+
+		//###############################################################
+	case RFID_ACTION_VALID_ID:
 		//RFID Take Action On ID(T)
-		//RFID Report ID And Action To Server(T)
+		//if current state of lock is open, switch to locked, and vise versa.
+
+
+
+
+
+		
 
 		//XBee Collect And Validate Input(T)
 		//XBee Update Local Database(T)
