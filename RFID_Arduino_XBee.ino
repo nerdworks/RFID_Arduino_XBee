@@ -21,15 +21,13 @@ Short press: Open lock for passage when lock is closed. Close lock if open.
 Long press: ?
 
 A table of valid RFID numbers are stored in EEPROM. This table can be updated from the server.
-
 Structure of table:
 RFID-tag-number (12 chars = 12 bytes)	|	Zone (16 zones @ 1 bit each = 2 bytes)
-
 1024 / 14 = max 70 active cards. Use external EEPROM if more cards are needed.
-
 I addition a unique ID (RFID node ID) and zone for this reader is stored in EEPROM.....
 
-
+Forward door position and lock position to server.
+See lock: http://udohow.en.made-in-china.com/product/lSjmtBYUbbcH/China-Electronic-Hook-Drop-Bolt-Lock.html
 
 */
 
@@ -43,8 +41,6 @@ Wait for input form RFID, XBee or switch  (S)
 	
 RFID Collect And Validate Input (T)
 RFID Check ID Against Database (T)
-RFID Take Action On ID (T)
-RFID Report ID And Action To Server (T)
 
 XBee Collect And Validate Input (T)
 XBee Update Local Database (T)
@@ -52,7 +48,7 @@ XBee Set Internal Clock (T) Nødvendig med klokke?
 XBee Set Door To Open Or Closed (T)
 XBee Report Action Taken To Server (T)
 
-Switch state of lock (T)
+Action Lock (T)
 
 Action LEDs (T) (Should be done in several of the states above....)
 Action Lock (T) (Er denne nødvendig?)
@@ -63,7 +59,7 @@ Action Lock (T) (Er denne nødvendig?)
 //      closed o--
 */
 
-enum State { INIT, WAITFORINPUT, RFID_READ, RFID_CHECK_TAG, RFID_ACTION_VALID_ID, TIMEOUT, PROCESSING, FINISHED, ERROR } state;
+enum State { INIT, IDLE, RFID_READ, RFID_CHECK_TAG, ACTION_LOCK, TIMEOUT, PROCESSING, FINISHED, ERROR } state;
 
 // Read about elapsedMillis here:
 // http://www.forward.com.au/pfod/ArduinoProgramming/TimingDelaysInArduino.html
@@ -72,6 +68,12 @@ enum State { INIT, WAITFORINPUT, RFID_READ, RFID_CHECK_TAG, RFID_ACTION_VALID_ID
 #include <SoftwareSerial.h>
 #include <elapsedMillis.h>
 #include <EEPROMex.h>
+
+
+// Create a software serial object for the connection to the XBee module
+#define rxPin 2
+#define txPin 3
+SoftwareSerial xbee = SoftwareSerial(rxPin, txPin);
 
 
 // just for testing of elapsedMillis
@@ -83,26 +85,28 @@ elapsedMillis timer0; // Timer for x
 
 //declare global variables
 char tagString[13]; //Last read RFID tag string
-boolean lockStatus = 1;
+boolean lockStatus = 1; // Current status of the lock. 1=Locked, 0=open
 int RFIDResetPin = 13;
 
 
 void setup() {
-	state = INIT
+	state = INIT;
 
-		//RFID reader
-		Serial.begin(9600);
-		pinMode(RFIDResetPin, OUTPUT);
-		digitalWrite(RFIDResetPin, HIGH);
+	//RFID reader
+	Serial.begin(9600);
+	pinMode(RFIDResetPin, OUTPUT);
+	digitalWrite(RFIDResetPin, HIGH);
 	//End RFID reader
 
-	//XBee reader
-
-	//End XBee reader
+	//XBee reader serial comms
+	xbee.begin(9600);      // Serial port for connection to XBee module
+	
+	// Get lockOpenTime from EEPROM (Can be updated from server)
 
 
 	// just for testing of elapsedMillis
 		pinMode(led, OUTPUT); // initialize the digital pin as an output.
+
 		timer0 = 0; // clear the timer at the end of startup
 }
 
@@ -134,7 +138,7 @@ void loop() {
 		// Ask server if current state of lock should be locked or unlocked.
 		// If no answer, set to locked.
 
-		state = WAITFORINPUT;
+		state = IDLE;
 		break;
 
 	//case nnn:
@@ -143,7 +147,7 @@ void loop() {
 
 		
 	//###############################################################	
-	case WAITFORINPUT:
+	case IDLE:
 		// Look for input from RFID-chip, XBee, and switch
 
 		if (Serial.available()) {
@@ -152,6 +156,10 @@ void loop() {
 		}
 
 		// Les XBee her....
+
+		// se om noen timere er utgått her, og ta aksjon....
+		// F.eks lås døra når lockOpenTime er ute
+
 
 		break;
 
@@ -192,13 +200,13 @@ void loop() {
 		// regarding use of EEPROM
 
 		//If tagString is found in EEPROM and zone for this reader matches zone-bit for this tagString
-		//	state = RFID_ACTION_VALID_ID
+		//	state = ACTION_LOCK
 		//	Report valid ID to server for logging
 
 		//else
 		//	blink red LED
 		//	report invalid tag to server for logging
-		//	state = WAITFORINPUT;
+		//	state = IDLE;
 
 		//clear the char array by filling with null - ASCII 0. Will think same tag has been read otherwise.
 		//See: http://bildr.org/2011/02/rfid-arduino/
@@ -207,12 +215,23 @@ void loop() {
 		break;
 
 		//###############################################################
-	case RFID_ACTION_VALID_ID:
-		//RFID Take Action On ID(T)
-		//if current state of lock is open, switch to locked, and vise versa.
+	case ACTION_LOCK:
+		//Action LOCK(T)
+		//if current state of lock is unlocked, switch to locked.
+		//if current state of lock is locked, switch to unlocked for a while. Then locked again. Blink green while open.
+
+		//if lockStatus == 1 
+			//Blink unlocked
+			//set lockStatus to 0
+			//Get lockOpenTime from EEPROM (Can be updated from server)
+			//Unlock door
+			//start lockOpenTimer and keep lock open for lockOpenTime
+								
+
+		//if door is supposed to be locked, as demanded from server. Signal if door is left open (and unlocked).
 
 
-
+		break;
 
 
 		
