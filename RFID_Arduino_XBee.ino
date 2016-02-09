@@ -8,6 +8,16 @@
 Description:
 Use one or more RFID Readers (ID-20LA (125 kHz)), each connected to an Arduino as access control. The Arduino's communicates with a centralized access control server using XBee.
 
+RFID chip connection to the Arduino:
+
+RFID pin	-----		Arduino pin
+1  GND		-----		GND
+2  RES		-----		5V
+7  FORM		-----		GND
+9  D0		-----		2 (rxPin)
+11 VCC		-----		5V
+
+
 Uses two RGB LEDs (in parallel?). One on each side of the door.
 Continuous green = Door lock is continuously open as demanded from server.
 Blinking green = Door lock is temporarily open for passage.
