@@ -22,14 +22,23 @@ Long press: ?
 
 A table of valid RFID numbers are stored in EEPROM. This table can be updated from the server.
 Structure of table:
-RFID-tag-number (12 chars = 12 bytes)	|	Zone (16 zones @ 1 bit each = 2 bytes)
-1024 / 14 = max 70 active cards. Use external EEPROM if more cards are needed.
-I addition a unique ID (RFID node ID) and zone for this reader is stored in EEPROM.....
+RFID-tag-number (12 chars + EOL = 13 bytes)	|	Zone (16 zones @ 1 bit each = 2 bytes)
+1024 / 15 = about 65 active cards. Use external EEPROM if more cards are needed.
+
+//In addition the following variables are stored in EEPROM:
+//A unique ID (RFID node ID) 
+//Zone for this physical reader = 2 bytes
+//int lockOpenTime = 1 byte
+
+Start and end addresses for the info stored in EEPROM:
+
+
+*/
 
 Forward door position and lock position to server.
 See lock: http://udohow.en.made-in-china.com/product/lSjmtBYUbbcH/China-Electronic-Hook-Drop-Bolt-Lock.html
 
-*/
+
 
 // Se på state maskin i eksempelbruk av elapsedMillis....
 // og her: https://hackingmajenkoblog.wordpress.com/2016/02/01/the-finite-state-machine/
@@ -87,6 +96,7 @@ elapsedMillis timer0; // Timer for x
 char tagString[13]; //Last read RFID tag string
 boolean lockStatus = 1; // Current status of the lock. 1=Locked, 0=open
 int RFIDResetPin = 13;
+int lockOpenTime = 0; // Read from EEPROM
 
 
 void setup() {
@@ -217,16 +227,18 @@ void loop() {
 		//###############################################################
 	case ACTION_LOCK:
 		//Action LOCK(T)
-		//if current state of lock is unlocked, switch to locked.
-		//if current state of lock is locked, switch to unlocked for a while. Then locked again. Blink green while open.
+		//if current state of lock is unlocked, switch to locked, and send message to server.
+		//
+		//if current state of lock is locked, switch to unlocked for a while (and send message to server). Then locked again. Blink green while open.
 
-		//if lockStatus == 1 
-			//Blink unlocked
-			//set lockStatus to 0
-			//Get lockOpenTime from EEPROM (Can be updated from server)
-			//Unlock door
-			//start lockOpenTimer and keep lock open for lockOpenTime
-								
+		if (lockStatus == 1) {
+			//if lockStatus == 1 
+				//Blink unlocked
+				//set lockStatus to 0
+				//Unlock door
+				//Get lockOpenTime from EEPROM (Can be updated from server)				
+				//start lockOpenTimer and keep lock open for lockOpenTime
+		}
 
 		//if door is supposed to be locked, as demanded from server. Signal if door is left open (and unlocked).
 
