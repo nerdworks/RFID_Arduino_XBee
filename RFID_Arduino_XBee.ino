@@ -35,8 +35,8 @@ Start and end addresses for the info stored in EEPROM:
 
 */
 
-Forward door position and lock position to server.
-See lock: http://udohow.en.made-in-china.com/product/lSjmtBYUbbcH/China-Electronic-Hook-Drop-Bolt-Lock.html
+//Forward door position and lock position to server.
+//See lock: http://udohow.en.made-in-china.com/product/lSjmtBYUbbcH/China-Electronic-Hook-Drop-Bolt-Lock.html
 
 
 
@@ -95,7 +95,6 @@ elapsedMillis timer0; // Timer for x
 //declare global variables
 char tagString[13]; //Last read RFID tag string
 boolean lockStatus = 1; // Current status of the lock. 1=Locked, 0=open
-int RFIDResetPin = 13;
 int lockOpenTime = 0; // Read from EEPROM
 
 
@@ -104,8 +103,6 @@ void setup() {
 
 	//RFID reader
 	Serial.begin(9600);
-	pinMode(RFIDResetPin, OUTPUT);
-	digitalWrite(RFIDResetPin, HIGH);
 	//End RFID reader
 
 	//XBee reader serial comms
@@ -192,11 +189,6 @@ void loop() {
 				//Continue blinking blue LED
 			}
 		}
-
-		//Reset the RFID reader to read again.
-		digitalWrite(RFIDResetPin, LOW);
-		digitalWrite(RFIDResetPin, HIGH);
-		delay(150); // erstattes med en timer....
 
 		state = RFID_CHECK_TAG;
 
