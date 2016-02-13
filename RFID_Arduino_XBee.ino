@@ -8,6 +8,11 @@
 Description:
 Use one or more RFID Readers (ID-20LA (125 kHz)), each connected to an Arduino as access control. The Arduino's communicates with a centralized access control server using XBee.
 
+The Arduino is connected to an electric deadbolt lock. See link below
+### Make sure not to lock the locked when the door is still open....
+
+Put only the RFID reader on the outside of the house in case it's enclosure is broken into.
+
 RFID chip connection to the Arduino:
 
 RFID pin	-----		Arduino pin
@@ -47,6 +52,7 @@ Start and end addresses for the info stored in EEPROM:
 
 //Forward door position and lock position to server.
 //See lock: http://udohow.en.made-in-china.com/product/lSjmtBYUbbcH/China-Electronic-Hook-Drop-Bolt-Lock.html
+//
 
 
 
@@ -83,7 +89,7 @@ enum State { INIT, IDLE, RFID_READ, RFID_CHECK_TAG, ACTION_LOCK, TIMEOUT, PROCES
 // Read about elapsedMillis here:
 // http://www.forward.com.au/pfod/ArduinoProgramming/TimingDelaysInArduino.html
 
-
+//Use Altsoftserial.... Tx = Pin 9, Rx = Pin 8
 #include <SoftwareSerial.h>
 #include <elapsedMillis.h>
 #include <EEPROMex.h>
