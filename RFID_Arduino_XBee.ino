@@ -28,6 +28,13 @@ In addition:
 RFID pin 1 (GND) is strapped to RFID pin 7 (FORM)
 RFID pin 11 (VCC) is strapped to RFID pin 2 (RES)
 
+XBee connections to the Arduino:
+
+Xbee pin				Arduino pin
+			-----
+
+
+
 
 Uses two RGB LEDs (in parallel?). One on each side of the door.
 Continuous green = Door lock is continuously open as demanded from server. (Alarm off, and house is open)
