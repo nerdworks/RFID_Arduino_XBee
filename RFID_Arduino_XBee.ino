@@ -6,7 +6,7 @@
 
 /*
 Description:
-Use one or more RFID Readers (ID-20LA (125 kHz)), each connected to an Arduino as access control. The Arduino's communicates with a centralized access control server using XBee.
+Use one or more RFID Readers (ID-20LA (125 kHz)), each connected to an Arduino Pro Mini 328 5V/16MHz as access control. The Arduino's communicates with a centralized access control server using XBee.
 
 RFID chip connection to the Arduino:
 
@@ -36,9 +36,13 @@ RFID-tag-number (12 chars + EOL = 13 bytes)	|	Zone (16 zones @ 1 bit each = 2 by
 1024 / 15 = about 65 active cards. Use external EEPROM if more cards are needed.
 
 //In addition the following variables are stored in EEPROM:
-//A unique ID (RFID node ID) 
+//A unique ID for this physical unit (RFID node ID or maybe XBee node address) 
 //Zone for this physical reader = 2 bytes
 //int lockOpenTime = 1 byte
+//XBee PAN ID = 2 byte
+//XBee node address = 2 byte
+//XBee server address = 2 byte
+// Total = 9 bytes
 
 Start and end addresses for the info stored in EEPROM:
 
