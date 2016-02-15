@@ -61,7 +61,7 @@ RFID-tag-number (10 char ID = 10 bytes) (keep CRC (2 bytes) and EOL (1 byte) out
 //int lockOpenTime =											1 byte
 //XBEE address for the server									16 bytes
 
-Total additional bytes in EEPROM =								35 bytes out of ....
+Total additional bytes in EEPROM =								35 bytes out of 40....
 
 Start and end addresses for the info stored in EEPROM:
 Name			Start address	End address
