@@ -6,48 +6,77 @@
 
 /*
 Description:
-Use one or more RFID Readers (ID-20LA (125 kHz)), each connected to an Arduino Pro Mini as access control. The Arduino's communicates with a centralized access control server using XBee.
+Use one or more RFID Readers (ID-20LA (125 kHz)), each connected to an Arduino Pro Mini as access control.
+The Arduino's communicates with a centralized access control server using XBee.
 
 The Arduino is connected to an electric deadbolt lock. See link below
 ### Make sure not to close the lock when the door is still open....
 
-Put only the RFID reader on the outside of the house in case it's enclosure is broken into. Keep the Arduino and XBee on the "inside".
+###########################################################################################################################
+// Hardware Description ###################################################################################################
+###########################################################################################################################
 
-One Ethernet cable goes from the inside to the outside for comms with the RFID chip, and for controlling the diode.
+Place just the RFID reader on the outside of the house in case it's enclosure is broken into.
+Keep the Arduino and XBee on the "inside".
+
+One Ethernet cable goes from the inside to the outside for communication with the RFID chip, and for controlling the diode(s).
 
 RFID chip connection to the Arduino:
-
 RFID pin				Arduino pin
 1  GND		-----		GND
 2  RES
 7  FORM
-9  D0		-----		8 (rxPin)
+9  D0		-----		D8 (rxPin)
 11 VCC		-----		5V
-
-In addition:
-RFID pin 1 (GND) is strapped to RFID pin 7 (FORM)
-RFID pin 11 (VCC) is strapped to RFID pin 2 (RES)
+Also: RFID pin 1 (GND) is strapped to RFID pin 7 (FORM), and RFID pin 11 (VCC) is strapped to RFID pin 2 (RES).
 
 
-XBee connections to the Arduino:
+XBee Explorer connections to the Arduino:
+XBee Explorer pin	-----		Arduino pin
+GND					-----		GND
+5V					-----		5V
+DIN					-----		D0/TX
+DOUT				-----		D1/RX
 
-XBee pin				Arduino pin
-			-----
+
+Door lock connections to Arduino:
+Lock function	-----		Arduino pin
+Solenoid relay	-----		D7
+Door position	-----		D4
+Lock position	-----		D2
+GND				-----		GND
 
 
+Status LEDs connection to Arduino:
+Red pin		-----		D6
+Green pin	-----		D5
+Blue pin	-----		D3
+Cathode		-----		GND
 
 
-Uses two RGB LEDs (in parallel?). One on each side of the door.
+Exit button connection to Arduino
+Button Pin	-----		Arduino pin
+Pin 1		-----		D12
+Pin 2		-----		GND
+
+LED function:
+Uses two RGB LEDs in parallel. One on each side of the door.
 Continuous green = Door lock is continuously open as demanded from server. (Alarm off, and house is open)
 Blinking green = Door lock is temporarily open for passage.
 Continuous red = Door lock is continuously closed as demanded from server.
-Blinking red = Error. -- elaborate.... slow blink, fast blink etc...
-Continuous blue = 
+Blinking red = Error.                    -- elaborate.... slow blink, fast blink etc...
+Continuous blue = ?
 Blinking blue = Communication or validation is ongoing.
 
 Uses one switch on the inside.
-Short press: Open lock for passage when lock is closed.
-Long press: If alarm on (house is locked); turn off alarm and open house. If alarm off (house is open); lock hose and turn alarm on. Message to server of course!
+Short press: Open lock for passage when lock is closed. Send message to server.
+Long press: If alarm is on (house is locked); Send message to server to turn off alarm and open house. 
+			If alarm is off (house is open); Send message to server to turn alarm on and lock house.
+
+
+###############################################################################################################################
+// EEPROM Stuff ###############################################################################################################
+###############################################################################################################################
 
 A table of valid RFID numbers are stored in EEPROM. This table is updated from the server.
 Structure of table:
@@ -69,6 +98,15 @@ Database
 Unique ID	
 Zone	
 lockOpenTime	
+
+
+###############################################################################################################################
+// Message protocol to server #################################################################################################
+###############################################################################################################################
+
+
+....
+
 
 */
 
@@ -106,42 +144,64 @@ Action Lock (T) (Er denne nødvendig?)
 //      closed o--
 */
 
-enum State { INIT, IDLE, RFID_READ, RFID_CHECK_TAG, ACTION_LOCK, TIMEOUT, PROCESSING, FINISHED, ERROR } state;
 
-// Read about elapsedMillis here:
-// http://www.forward.com.au/pfod/ArduinoProgramming/TimingDelaysInArduino.html
+//###############################################################################################################################
+// Libraries ####################################################################################################################
+//###############################################################################################################################
 
-//Use Altsoftserial.... Tx = Pin 9, Rx = Pin 8 (PWM 10 = unusable)
-#include <AltSoftSerial.h>
+//Use button library to handle buttons and switches: http://arduino-info.wikispaces.com/HAL-LibrariesUpdates
+//Read about elapsedMillis here:  http://www.forward.com.au/pfod/ArduinoProgramming/TimingDelaysInArduino.html
+//Use AltSoftSerial for communication with the RFID reader. Tx = Pin 9 (not used), Rx = Pin 8. With Altsoftserial PWM 10 = unusable.
+
+#include <Altsoftserial.h>
 #include <elapsedMillis.h>
 #include <EEPROMex.h>
+#include <Button.h>
 
 
-// Create an Altsoftserial object for the connection to the XBee module
-AltSoftSerial xbeeSerial;
+//###############################################################################################################################
+// Create Objects ###############################################################################################################
+//###############################################################################################################################
 
+AltSoftSerial RFIDSerial; //Create an AltSoftSerial object for the connection to the RFID reader
+Button exitButton = Button(12, PULLUP);
+Button doorPositionSwitch = Button(4, PULLUP);
+Button doorLockSwitch = Button(2, PULLUP);
+
+
+//###############################################################################################################################
+// Declare variables, timers, etc ###############################################################################################
+//###############################################################################################################################
 
 // just for testing of elapsedMillis
 int led = 13; // Pin 13 has an LED connected on most Arduino boards.
 
-// Definition of all global timers
+// Set up states for the finite state machine
+enum State { INIT, IDLE, RFID_READ, RFID_CHECK_TAG, ACTION_LOCK, TIMEOUT, PROCESSING, FINISHED, ERROR } state;
+
+// Definition of global timers
 elapsedMillis timer0; // Timer for x
 #define timer0interval 1000 // the interval in mS 
 
 //declare global variables
 char tagString[10]; //Last read RFID tag string
+boolean doorStatus = 1; // Current status of the door. 1=Closed, 0=open
 boolean lockStatus = 1; // Current status of the lock. 1=Locked, 0=open
-int lockOpenTime = 0; // Read from EEPROM
+int lockOpenTime = 0; // The time to keep the lock open. Read from EEPROM
 
 
+//###############################################################################################################################
+// Setup ########################################################################################################################
+//###############################################################################################################################
 void setup() {
 	state = INIT;
 
-	Serial.begin(9600);			// RFID Reader
-	xbeeSerial.begin(9600);		// Serial port for connection to XBee module
+	Serial.begin(9600);			// XBee module
+	RFIDSerial.begin(9600);		// Serial port for connection to RRID reader
 	
 	// Get lockOpenTime from EEPROM 
 
+	// Send startup message to server for logging.
 
 	// just for testing of elapsedMillis
 		pinMode(led, OUTPUT); // initialize the digital pin as an output.
@@ -149,7 +209,10 @@ void setup() {
 		timer0 = 0; // clear the timer at the end of startup
 }
 
-// the loop function runs over and over again until power down or reset
+
+//###############################################################################################################################
+// Loop #########################################################################################################################
+//###############################################################################################################################
 void loop() {
 
 	//Declare variables valid for one loop
@@ -168,6 +231,7 @@ void loop() {
 	switch (state) {
 
 	//###############################################################
+	//###############################################################
 	case INIT:
 		//Move INIT to setup()?
 		Serial.print("RFID reader");
@@ -184,12 +248,12 @@ void loop() {
 		//Timers, Check And Update(T) (Er denne nødvendig ? )
 		//break;
 
-		
+	//###############################################################
 	//###############################################################	
 	case IDLE:
 		// Look for input from RFID-chip, XBee, and switch
 
-		if (Serial.available()) {
+		if (RFIDSerial.available()) {
 			state = RFID_READ;
 			//Start blinking blue LED...
 		}
@@ -203,11 +267,12 @@ void loop() {
 		break;
 
 	//###############################################################
+	//###############################################################
 	case RFID_READ:
 		//RFID Collect And Validate Input(T)
 		boolean reading = false;
 		int index = 0;
-		while (Serial.available()) {
+		while (RFIDSerial.available()) {
 			//from: http://bildr.org/2011/02/rfid-arduino/
 			int readByte = Serial.read(); //read next available byte
 
@@ -226,6 +291,7 @@ void loop() {
 
 		break;
 
+	//###############################################################
 	//###############################################################
 	case RFID_CHECK_TAG:
 		//RFID Check ID Against Database(T)
@@ -247,7 +313,8 @@ void loop() {
 
 		break;
 
-		//###############################################################
+	//###############################################################
+	//###############################################################
 	case ACTION_LOCK:
 		//Action LOCK(T)
 		//if current state of lock is unlocked, switch to locked, and send message to server.
