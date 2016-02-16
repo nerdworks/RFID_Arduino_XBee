@@ -6,7 +6,7 @@
 
 /*
 Description:
-Use one or more RFID Readers (ID-20LA (125 kHz)), each connected to an Arduino as access control. The Arduino's communicates with a centralized access control server using XBee.
+Use one or more RFID Readers (ID-20LA (125 kHz)), each connected to an Arduino PRO as access control. The Arduino's communicates with a centralized access control server using XBee.
 
 The Arduino is connected to an electric deadbolt lock. See link below
 ### Make sure not to close the lock when the door is still open....
@@ -21,7 +21,7 @@ RFID pin				Arduino pin
 1  GND		-----		GND
 2  RES
 7  FORM
-9  D0		-----		8 (rxPin)
+9  D0		-----		8 (rxPin) (Cannot be changed when using Altsoftserial
 11 VCC		-----		5V
 
 In addition:
