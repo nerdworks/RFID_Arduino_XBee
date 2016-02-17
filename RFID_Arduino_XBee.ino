@@ -22,7 +22,7 @@ Keep the Arduino and XBee on the "inside".
 One Ethernet cable or similar goes from the Arduino to the outside for communication with the RFID chip, and for controlling the diode, and to the exit button and the inside LED.
 
 RFID chip connection to the Arduino:
-RFID pin				Arduino pin
+RFID pin	-----		Arduino pin
 1  GND		Brown		GND
 2  RES
 7  FORM
@@ -48,6 +48,7 @@ GND				-----		GND
 
 
 Status LEDs connection to Arduino:
+LED pin		-----		Arduino pin
 Red pin		Blue/W		D6
 Green pin	Green		D5
 Blue pin	Green/W		D3
@@ -70,7 +71,7 @@ Blinking red = Error.                    -- elaborate.... slow blink, fast blink
 Continuous blue = ?
 Blinking blue = Communication or validation is ongoing.
 
-Uses one switch on the inside.
+Uses one switch on the inside of the door as exit button ++.
 Short press: Open lock for passage when lock is closed. Send message to server.
 Long press: If alarm is on (house is locked); Send message to server to turn off alarm and open house. 
 			If alarm is off (house is open); Send message to server to turn alarm on and lock house.
@@ -87,28 +88,55 @@ RFID-tag-number (10 char ID = 10 bytes) (keep CRC (2 bytes) and EOL (1 byte) out
 82 * 12 = 984. This leaves 40 bytes available for other data
 
 //In addition the following variables are stored in EEPROM:
-//A unique ID for this node (RFID node ID or 16 bit XBee ID?) =	16 bytes
+//A unique ID for this node (64 bit XBee ID) =					8 bytes //XBee ID can be fetched from the XBee module...
 //Zone for this physical reader =								2 bytes
 //int lockOpenTime =											1 byte
-//XBEE address for the server									16 bytes
+//16 bit XBEE address for the server							2 bytes
+//64 bit XBee address for the server							8 bytes
 
-Total additional bytes in EEPROM =								35 bytes out of 40....
+Total additional bytes in EEPROM =								21 bytes out of 40....
 
 Start and end addresses for the info stored in EEPROM:
-Name			Start address	End address
-Database	
-Unique ID	
-Zone	
-lockOpenTime	
+Name					Start address		End address
+Database				0					983	// 82 cards @ 10 bytes of RFID + 2 bytes for allowed zones for this card
+Unique ID				984					991 // 64 bit ID of the connected XBee module
+Zone					992					993
+lockOpenTime			994					994					
+16 bit server address	995					996
+64 bit server address	997					1005
+
 
 
 ###############################################################################################################################
 // Message protocol to server #################################################################################################
 ###############################################################################################################################
 
+ Message| Message	| Message																| Type and											| Message	| Example
+ start	| type		| Description															| size of											| stop		| data
+ byte	| ID		|																		| data												| byte		| package
+--------|-----------|-----------------------------------------------------------------------|---------------------------------------------------|-----------|---------------
+ $		| A			| Door lock state change by use of RFID									| RFID (10 byte char array) + new state (boolean)	| &			| $A04A9FC65B30&	// The server know which door based on senders 64 bit XBee. If the door was unlocked, the server will turn the alarm on
+ $		| B			| Door lock state change by use of exit button (short press)			| New state 0 or 1 (1 bit boolean)					| &			| $B1&				// 0 = unlocked, 1 = locked
+ $		| C			| Alarm state change by use of exit button (long press)					| 0 or 1 (1 bit boolean)							| &			| $C0&				// 0 = alarm off, 1 = alarm on
+ $		| D			| 																		|													| &			| $D...&
+ $		| E			| 																		|													| &			| $E...&
+ $		| F			|																		|													| &			| $F...&
+ $		| G			| 																		|													| &			| $G...&
+ $		| H			|																		|													| &			| $H...&
+ $		| I			| 																		|													| &			| $I...&
+ $		| J			| 																		|													| &			| $J...&
+ $		| K			|																		|													| &			| $K...&
+ $		| L			| 																		|													| &			| $L...&
+ $		| M			| 																		|													| &			| $M...&
+ $		| N			| 																		|													| &			| $N...&
+ $		| O			| 																		|													| &			| $O...&
+ $		| P			| 																		|													| &			| $P...&
 
-....
 
+
+###############################################################################################################################
+// Message protocol from server ###############################################################################################
+###############################################################################################################################
 
 */
 
@@ -206,7 +234,7 @@ void setup() {
 	RFIDSerial.begin(9600);		// Serial port for connection to RRID reader
 
 	// Detect if we are connected to a computer or the XBee.....
-	Serial.print(+++);
+	Serial.print(+++); // Virker kun i AT mode? Kanskje bedre å spørre etter firmvare-versjon?
 	delay(200);
 	if (Serial.available()) {
 		byte check = Serial.read();
@@ -331,7 +359,7 @@ void loop() {
 
 		break;
 
-		//###############################################################
+	//###############################################################
 	//###############################################################
 	case ACTION_LOCK:
 		//Action LOCK(T)
@@ -362,10 +390,8 @@ void loop() {
 		//XBee Set Door To Open Or Closed(T)
 		//XBee Report Action Taken To Server(T)
 
-		//Switch state of lock(T)
-
 		//Action LEDs(T) (Should be done in several of the states above....)
-		//Action Lock(T)
-		//Handle switches. Indoor manual switch, deadbolt position switch and door position switch.
+		
+		//Handle switches and buttons. Indoor manual exit button, deadbolt position switch and door position switch.
 
 }
