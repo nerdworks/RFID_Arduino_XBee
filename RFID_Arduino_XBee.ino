@@ -6,20 +6,27 @@
 
 /*
 Description:
-Use one or more RFID Readers (ID-20LA (125 kHz)), each connected to an Arduino Pro Mini as access control.
+Use one or more RFID Readers (ID-20LA (125 kHz)),
+each connected to an Arduino Pro Mini as access control.
 The Arduino's communicates with a centralized access control server using XBee.
 
 The Arduino is connected to an electric deadbolt lock. See link below
 ### Make sure not to close the lock when the door is still open....
 
-###########################################################################################################################
-// Hardware Description ###################################################################################################
-###########################################################################################################################
+###############################################################################
+// Hardware Description #######################################################
+###############################################################################
 
-Place just the RFID reader on the outside of the house in case it's enclosure is broken into.
+Place only the RFID reader on the outside of the house
+in case it's enclosure is broken into.
 Keep the Arduino and XBee on the "inside".
 
-One Ethernet cable or similar goes from the Arduino to the outside for communication with the RFID chip, and for controlling the diode, and to the exit button and the inside LED.
+One Ethernet cable or similar goes from the Arduino to the outside for
+communication with the RFID chip,
+and for controlling the diode, and to the exit button and the inside LED.
+
+This code is written to be used with the following electric dead bolt lock:
+http://udohow.en.made-in-china.com/product/lSjmtBYUbbcH/China-Electronic-Hook-Drop-Bolt-Lock.html
 
 RFID chip connection to the Arduino:
 RFID pin	-----		Arduino pin
@@ -28,15 +35,16 @@ RFID pin	-----		Arduino pin
 7  FORM
 9  D0		Blue		8 (rxPin) (Cannot be changed when using Altsoftserial
 11 VCC		Brown/W		5V
-Also: RFID pin 1 (GND) is strapped to RFID pin 7 (FORM), and RFID pin 11 (VCC) is strapped to RFID pin 2 (RES).
+Also: RFID pin 1 (GND) is strapped to RFID pin 7 (FORM),
+and RFID pin 11 (VCC) is strapped to RFID pin 2 (RES).
 
 
 XBee Explorer connections to the Arduino:
 XBee Explorer pin	-----		Arduino pin
 GND					-----		GND
 5V					-----		5V
-DIN					-----		D0/TX
-DOUT				-----		D1/RX
+DIN					-----		D10/TX
+DOUT				-----		D11/RX
 
 
 Door lock connections to Arduino:
@@ -64,188 +72,282 @@ Pin 2		Brown		GND
 
 LED function:
 Uses two RGB LEDs in parallel. One on each side of the door.
-Continuous green = Door lock is continuously open as demanded from server. (Alarm off, and house is open)
-Blinking green = Door lock is temporarily open for passage.
-Continuous red = Door lock is continuously closed as demanded from server.
-Blinking red = Error.                    -- elaborate.... slow blink, fast blink etc...
-Continuous blue = ?
-Blinking blue = Communication or validation is ongoing.
+
+Continuous green = 
+	Door lock is continuously open as demanded from server.
+	(Alarm off, and house is open)
+Blinking green = 
+	Door lock is temporarily open for passage.
+Continuous red = 
+	Door lock is continuously closed as demanded from server.
+Blinking red = 
+	Error.                    -- elaborate.... slow blink, fast blink etc...
+Continuous blue = 
+	?
+Blinking blue = 
+	Communication or validation is ongoing.
 
 Uses one switch on the inside of the door as exit button ++.
-Short press: Open lock for passage when lock is closed. Send message to server.
-Long press: If alarm is on (house is locked); Send message to server to turn off alarm and open house. 
-			If alarm is off (house is open); Send message to server to turn alarm on and lock house.
+Short press: 
+	Open lock for passage when lock is closed. Send message to server.
+Long press: 
+	If alarm is on (house is locked);
+	Send message to server to turn off alarm and open house. 
+	If alarm is off (house is open);
+	Send message to server to turn alarm on and lock house.
 
 
-###############################################################################################################################
-// EEPROM Stuff ###############################################################################################################
-###############################################################################################################################
+###############################################################################
+// EEPROM Stuff ###############################################################
+###############################################################################
 
-A table of valid RFID numbers are stored in EEPROM. This table is updated from the server.
+A table of valid RFID numbers are stored in EEPROM.
+This table is updated from the server.
 Structure of table:
-RFID-tag-number (10 char ID = 10 bytes) (keep CRC (2 bytes) and EOL (1 byte) out of database)	|	Zone (16 zones @ 1 bit each = 2 bytes)
-1024 / 12 = about 82 active cards. Use external EEPROM if more cards are needed.
-82 * 12 = 984. This leaves 40 bytes available for other data
+RFID tag number (10 HEX digits = 5 bytes)
+	(keep CRC (1 byte) and EOL (1 byte) out of database)
+Zone (16 zones @ 1 bit each = 2 bytes)
 
-//In addition the following variables are stored in EEPROM:
-//A unique ID for this node (64 bit XBee ID) =					8 bytes //XBee ID can be fetched from the XBee module...
-//Zone for this physical reader =								2 bytes
-//int lockOpenTime =											1 byte
-//16 bit XBEE address for the server							2 bytes
-//64 bit XBee address for the server							8 bytes
+1024 / 7 = about 140 active cards. Use ext EEPROM if more cards are needed.
+140 * 7 = 980. This leaves 44 bytes available for other data.
 
-Total additional bytes in EEPROM =								21 bytes out of 40....
+In addition the following variables are stored in EEPROM:
+A unique ID for this node (64 bit XBee ID) =8 bytes //Fetch from the module
+Zone for this physical reader =				2 bytes
+int lockOpenTime =							1 byte
+16 bit XBEE address for the server			2 bytes
+64 bit XBee address for the server			8 bytes
+
+Total additional bytes in EEPROM =			21 bytes out of 40....
 
 Start and end addresses for the info stored in EEPROM:
-Name					Start address		End address
-Database				0					983	// 82 cards @ 10 bytes of RFID + 2 bytes for allowed zones for this card
-Unique ID				984					991 // 64 bit ID of the connected XBee module
-Zone					992					993
-lockOpenTime			994					994					
-16 bit server address	995					996
-64 bit server address	997					1005
-
-
-
-###############################################################################################################################
-// Message protocol to server #################################################################################################
-###############################################################################################################################
-
- Message| Message	| Message																| Type and											| Message	| Example
- start	| type		| Description															| size of											| stop		| data
- byte	| ID		|																		| data												| byte		| package
---------|-----------|-----------------------------------------------------------------------|---------------------------------------------------|-----------|---------------
- $		| A			| Door lock state change by use of RFID									| RFID (10 byte char array) + new state (boolean)	| &			| $A04A9FC65B30&	// The server know which door based on senders 64 bit XBee. If the door was unlocked, the server will turn the alarm on
- $		| B			| Door lock state change by use of exit button (short press)			| New state 0 or 1 (1 bit boolean)					| &			| $B1&				// 0 = unlocked, 1 = locked
- $		| C			| Alarm state change by use of exit button (long press)					| 0 or 1 (1 bit boolean)							| &			| $C0&				// 0 = alarm off, 1 = alarm on
- $		| D			| 																		|													| &			| $D...&
- $		| E			| 																		|													| &			| $E...&
- $		| F			|																		|													| &			| $F...&
- $		| G			| 																		|													| &			| $G...&
- $		| H			|																		|													| &			| $H...&
- $		| I			| 																		|													| &			| $I...&
- $		| J			| 																		|													| &			| $J...&
- $		| K			|																		|													| &			| $K...&
- $		| L			| 																		|													| &			| $L...&
- $		| M			| 																		|													| &			| $M...&
- $		| N			| 																		|													| &			| $N...&
- $		| O			| 																		|													| &			| $O...&
- $		| P			| 																		|													| &			| $P...&
-
-
-
-###############################################################################################################################
-// Message protocol from server ###############################################################################################
-###############################################################################################################################
-
+Name			Start address	End address
 */
 
-//Forward door position and lock position to server.
-//See lock: http://udohow.en.made-in-china.com/product/lSjmtBYUbbcH/China-Electronic-Hook-Drop-Bolt-Lock.html
-//
+#include <SoftwareSerial.h>
+int EE_Database = 0; 			// 979	140 cards @ 7 bytes of RFID + 2 bytes for allowed zones for this card
+int EE_UniqueID	= 980;			// 987	64 bit ID of connected XBee module
+int EE_Zone	= 988;				// 990	Zone for this reader
+int EE_lockOpenTime = 991;		// 991	Time to keep the lock open
+int EE_16bitServerID = 992;		// 993	16 bit XBee address of server
+int EE_64bitServerID = 994;		// 1001	64 bit XBee address of server
 
-
-
-// Se på state maskin i eksempelbruk av elapsedMillis....
-// og her: https://hackingmajenkoblog.wordpress.com/2016/02/01/the-finite-state-machine/
 
 /*
-State machine states (Static and Transitional):
-Timers, Check And Update (T) (Er denne nødvendig?)
-Wait for input form RFID, XBee or switch  (S)
+###############################################################################
+// Message protocol to server #################################################
+###############################################################################
+
+All messages must have a "$" as start byte
+After the start byte ($) comes a message identification byte (capital letter).
+Next comes the data, if applicable.
+All messages must end with a "&".
+
+-------------------------------------------------------------------------------
+Message ID: A
+Description:
+	Door lock state change by use of RFID
+Type and size of data:
+	RFID (10 byte char array) + new state (boolean)
+Example message:
+	$A04A9FC65B30&
+Comments:
+	The server know which door based on senders 64 bit XBee.
+	If the door was unlocked, the server will turn the alarm on.
+-------------------------------------------------------------------------------
+Message ID: B
+Description:
+	Door lock state change by use of exit button (short press)
+Type and size of data:
+	New state 0 or 1 (1 bit boolean)
+Example message:
+	$B1&
+Comments:
+	0 = unlocked, 1 = locked
+
+-------------------------------------------------------------------------------
+Message ID: C
+Description:
+	Alarm state change by use of exit button (long press)
+Type and size of data:
+	0 or 1 (1 bit boolean)
+Example message:
+	$C0&
+Comments:
 	
-RFID Collect And Validate Input (T)
-RFID Check ID Against Database (T)
 
-XBee Collect And Validate Input (T)
-XBee Update Local Database (T)
-XBee Set Internal Clock (T) Nødvendig med klokke?
-XBee Set Door To Open Or Closed (T)
-XBee Report Action Taken To Server (T)
+-------------------------------------------------------------------------------
+Message ID: D
+Description:
+Type and size of data:
+Example message:
+Comments:
 
-Action Lock (T)
+-------------------------------------------------------------------------------
+Message ID: E
+Description:
+Type and size of data:
+Example message:
+Comments:
 
-Action LEDs (T) (Should be done in several of the states above....)
-Action Lock (T) (Er denne nødvendig?)
-// Forskjellige typer lås må håndteres. NO, NC osv.
-// Noen lås har tilbakemelding....
-// F.eks: com  o------|
-//        open o--\___|
-//      closed o--
+-------------------------------------------------------------------------------
+Message ID: F
+Description:
+Type and size of data:
+Example message:
+Comments:
+
+-------------------------------------------------------------------------------
+Message ID: G
+Description:
+Type and size of data:
+Example message:
+Comments:
+
+-------------------------------------------------------------------------------
+Message ID: H
+Description:
+Type and size of data:
+Example message:
+Comments:
+
+-------------------------------------------------------------------------------
+Message ID: I
+Description:
+Type and size of data:
+Example message:
+Comments:
+
+-------------------------------------------------------------------------------
+Message ID: J
+Description:
+Type and size of data:
+Example message:
+Comments:
+
+-------------------------------------------------------------------------------
+Message ID: K
+Description:
+Type and size of data:
+Example message:
+Comments:
+
+-------------------------------------------------------------------------------
+Message ID: L
+Description:
+Type and size of data:
+Example message:
+Comments:
+
+-------------------------------------------------------------------------------
+Message ID: M
+Description:
+Type and size of data:
+Example message:
+Comments:
+
+
+
+
+###############################################################################
+// Message protocol from server ###############################################
+###############################################################################
+
+... Somewhat similar to the above....
+
+--Alarm has been turned on, lock house //Reply with error if door is open
+--Alarm has been turned off, open house.
+--Update EEPROM database
+--Reply to question for lock status
+--reply to question for door status
+
+....
+
 */
 
 
-//###############################################################################################################################
-// Libraries ####################################################################################################################
-//###############################################################################################################################
+//#############################################################################
+// Libraries ##################################################################
+//#############################################################################
 
-//Use button library to handle buttons and switches: http://arduino-info.wikispaces.com/HAL-LibrariesUpdates
-//Read about elapsedMillis here:  http://www.forward.com.au/pfod/ArduinoProgramming/TimingDelaysInArduino.html
-//Read about the EEPROMex library here: http://thijs.elenbaas.net/2012/07/extended-eeprom-library-for-arduino/
-//Use AltSoftSerial for communication with the RFID reader. Tx = Pin 9 (not used), Rx = Pin 8. With Altsoftserial PWM 10 = unusable.
+//Use button library to handle buttons and switches:
+http://arduino-info.wikispaces.com/HAL-LibrariesUpdates
+//Read about elapsedMillis here: 
+http://www.forward.com.au/pfod/ArduinoProgramming/TimingDelaysInArduino.html
+//Read about the EEPROMex library here:
+http://thijs.elenbaas.net/2012/07/extended-eeprom-library-for-arduino/
+//Use AltSoftSerial for communication with the RFID reader.
+//Tx = Pin 9 (not used), Rx = Pin 8. With Altsoftserial PWM 10 = unusable.
 
-#include <Altsoftserial.h>
+#include <SoftWareSerial.h>
 #include <elapsedMillis.h>
 #include <EEPROMex.h>
 #include <Button.h>
+#include <XBee.h>
+#include <Printers.h>
 
 
-//###############################################################################################################################
-// Create Objects ###############################################################################################################
-//###############################################################################################################################
+//#############################################################################
+// Create Objects #############################################################
+//#############################################################################
 
-AltSoftSerial RFIDSerial; //Create an AltSoftSerial object for the connection to the RFID reader
-Button exitButton = Button(12, PULLUP); //Debounce buttons and switches
+SoftWareSerial RFIDSerial(8,9); //SoftWareSerial object for the RFID reader
+SoftWareSerial XBeeerial(10,11); //SoftWareSerial object for the XBee module
+Button exitButton = Button(12, PULLUP); //De-bounce buttons and switches
 Button doorPositionSwitch = Button(4, PULLUP);
 Button doorLockSwitch = Button(2, PULLUP);
+XBee xbee = XBee(); // Create an XBee object 
 
 
-//###############################################################################################################################
-// Declare variables, timers, etc ###############################################################################################
-//###############################################################################################################################
+//#############################################################################
+// Declare variables, timers, etc #############################################
+//#############################################################################
 
 // just for testing of elapsedMillis
 int led = 13; // Pin 13 has an LED connected on most Arduino boards.
 
 // Set up states for the finite state machine
 enum State { INIT, IDLE, RFID_READ, RFID_CHECK_TAG, ACTION_LOCK, TIMEOUT, PROCESSING, FINISHED, ERROR } state;
+// Se på state maskin i eksempelbruk av elapsedMillis....
+// og her: https://hackingmajenkoblog.wordpress.com/2016/02/01/the-finite-state-machine/
 
 // Definition of global timers
 elapsedMillis timer0; // Timer for x
-#define timer0interval 1000 // the interval in mS 
+#define timer0interval 1000 // interval in ms 
 
 //declare global variables
-char tagString[10]; //Last read RFID tag string
-boolean doorStatus = 1; // Current status of the door. 1=Closed, 0=open
-boolean lockStatus = 1; // Current status of the lock. 1=Locked, 0=open
-int lockOpenTime = 0; // The time to keep the lock open. Read from EEPROM
-boolean connXBee = 0; // 1 when UART is connected to a XBee, 0 when connected to a computer.
+static char tagString[10]; //Last read RFID tag string
+static boolean doorStatus = 1; // Current status of the door. 1=Closed, 0=open
+static boolean lockStatus = 1; // Current status of the lock. 1=Locked, 0=open
+static int lockOpenTime = 3; // The time to keep the lock open. From EEPROM
+static boolean connXBee = 0; // Connected to XBee=1, connected to a comp=0.
 
 
 
-//###############################################################################################################################
-// Setup ########################################################################################################################
-//###############################################################################################################################
+//#############################################################################
+// Setup ######################################################################
+//#############################################################################
 void setup() {
 
 	state = INIT;
 
-	Serial.begin(9600);			// XBee module
+	Serial.begin(9600);			// Hardware serial connected to XBee module
+	xbee.setSerial(Serial);		// Tell XBee to use Hardware Serial.
 	RFIDSerial.begin(9600);		// Serial port for connection to RRID reader
+	delay(1);
 
 	// Detect if we are connected to a computer or the XBee.....
-	Serial.print(+++); // Virker kun i AT mode? Kanskje bedre å spørre etter firmvare-versjon?
+	Serial.print(+++); // kun i AT mode? Bedre å spørre etter firmvare-versjon?
 	delay(200);
 	if (Serial.available()) {
 		byte check = Serial.read();
-		if (check == O) {
+		if (check == 'O') {
 			connXBee = 1;
 		}
 	}
 
-
-
 	// Get lockOpenTime from EEPROM 
+	lockOpenTime = EEPROM.readByte(EE_lockOpenTime); // Time to keep lock open.
 
 	// Send startup message to server for logging.
 
@@ -256,9 +358,9 @@ void setup() {
 }
 
 
-//###############################################################################################################################
-// Loop #########################################################################################################################
-//###############################################################################################################################
+//#############################################################################
+// Loop #######################################################################
+//#############################################################################
 void loop() {
 
 	//Declare variables valid for one loop
@@ -276,9 +378,9 @@ void loop() {
 
 	switch (state) {
 
-	//###############################################################
-	//###############################################################
+	//#########################################################################
 	case INIT:
+	//#########################################################################
 		//Move INIT to setup()?
 		Serial.print("RFID reader");
 		Serial.print("XXX"); // Send f.eks XBee adresse. Kan resolves mot fonuftig navn på server....
@@ -294,10 +396,9 @@ void loop() {
 		//Timers, Check And Update(T) (Er denne nødvendig ? )
 		//break;
 
-	//###############################################################	
-	//###############################################################	
-	case IDLE:
-		// Look for input from RFID-chip, XBee, and switch
+	//#########################################################################	
+	case IDLE: // Look for input from RFID-chip, XBee, and switch
+	//#########################################################################
 
 		if (RFIDSerial.available()) {
 			state = RFID_READ;
@@ -312,10 +413,10 @@ void loop() {
 
 		break;
 
-	//###############################################################
-	//###############################################################
-	case RFID_READ:
-		//RFID Collect And Validate Input(T)
+	//#########################################################################
+	case RFID_READ: //RFID Collect And Validate Input(T)
+	//#########################################################################
+		
 		boolean reading = false;
 		int index = 0;
 		while (RFIDSerial.available()) {
@@ -325,7 +426,9 @@ void loop() {
 			if (readByte == 2) reading = true; //beginning of tag
 			if (readByte == 3) reading = false; //end of tag
 
-			if (reading && readByte != 2 && readByte != 10 && readByte != 13) { // _Dette må ryddes for å lagre kun 10 chars.... Lagre CRC for seg selv, kutt ut EOL osv.
+			if (reading && readByte != 2 && readByte != 10 && readByte != 13) {
+				// _Dette må ryddes for å lagre kun 10 chars.... Lagre CRC for seg selv, kutt ut EOL osv.
+				// Se f.eks: http://playground.arduino.cc/Code/ID12
 				//store the tag
 				tagString[index] = readByte;
 				index++;
@@ -337,10 +440,10 @@ void loop() {
 
 		break;
 
-	//###############################################################
-	//###############################################################
-	case RFID_CHECK_TAG:
-		//RFID Check ID Against Database(T)
+	//#########################################################################
+	case RFID_CHECK_TAG: //RFID Check ID Against Database(T)
+	//#########################################################################
+		
 			//Continue blinking blue LED
 		// See: http://thijs.elenbaas.net/2012/07/extended-eeprom-library-for-arduino regarding use of EEPROM
 
@@ -359,10 +462,10 @@ void loop() {
 
 		break;
 
-	//###############################################################
-	//###############################################################
-	case ACTION_LOCK:
-		//Action LOCK(T)
+	//#########################################################################
+	case ACTION_LOCK: //Action Lock(T)
+	//#########################################################################
+		
 		//if current state of lock is unlocked, switch to locked, and send message to server.
 		//
 		//if current state of lock is locked, switch to unlocked for a while (and send message to server). Then locked again. Blink green while open.
@@ -378,6 +481,11 @@ void loop() {
 
 		//if door is supposed to be locked, as demanded from server. Signal if door is left open (and unlocked).
 
+			// Forskjellige typer lås må håndteres.NO, NC osv.
+			// Noen lås har tilbakemelding....
+			// F.eks: com  o------|
+			//        open o--\___|
+			//      closed o--
 
 		break;
 
